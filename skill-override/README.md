@@ -67,7 +67,7 @@ OpenCode registry 按注册顺序在空集合上回放全部变换，磁盘技�
 ```sh
 cd opencode/plugins/skill-override
 pnpm install --frozen-lockfile
-pnpm run build
+pnpm run build:dist
 pnpm run typecheck
 pnpm test
 ```
@@ -76,6 +76,6 @@ pnpm test
 
 ## 构建
 
-`pnpm run build` 直接调用 esbuild CLI（精确锁定 0.28.2），把 `entry/index.ts` 打包压缩为 `dist/index.js`：ESM、target es2022、platform node。产物确定，重复构建 hash 一致。运行时依赖只有 node 内置模块；宿主包 `@opencode/plugin`、`effect` 及其子路径标为 external，不会进产物。`dist/index.js` 提交入库，`dist/*.d.ts` 忽略且不生成。插件运行时不读取本目录内的资源文件，无随产物携带项。
+`pnpm run build:dist` 直接调用 esbuild CLI（精确锁定 0.28.2），把 `entry/index.ts` 打包压缩为 `dist/index.js`：ESM、target es2022、platform node。产物确定，重复构建 hash 一致。运行时依赖只有 node 内置模块；宿主包 `@opencode/plugin`、`effect` 及其子路径标为 external，不会进产物。`dist/index.js` 提交入库，`dist/*.d.ts` 忽略且不生成。插件运行时不读取本目录内的资源文件，无随产物携带项。
 
 设计与决策依据见 [SPEC.md](SPEC.md)。

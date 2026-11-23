@@ -3,7 +3,7 @@
 // The prebuilt bundle must inline ordinary dependencies (fast-fuzzy) because the
 // Bun host resolves bare imports from the plugin directory - which a clean
 // machine does not have - while SDK/Effect imports stay external for the host.
-// Run after `pnpm run build`.
+// Run after `pnpm run build:dist`.
 
 import { describe, it } from "node:test"
 import assert from "node:assert/strict"

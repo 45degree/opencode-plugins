@@ -8,7 +8,7 @@
     ".": "./dist/index.js"
   },
   "scripts": {
-    "build": "esbuild entry/index.ts --bundle --minify --format=esm --platform=node --target=es2022 --charset=utf8 --outfile=dist/index.js --external:@opencode/plugin --external:@opencode/plugin/* --external:effect --external:effect/*",
+    "build:dist": "esbuild entry/index.ts --bundle --minify --format=esm --platform=node --target=es2022 --charset=utf8 --outfile=dist/index.js --external:@opencode/plugin --external:@opencode/plugin/* --external:effect --external:effect/*",
     "typecheck": "tsc -p tsconfig.json",
     "test": "node --import tsx/esm --test tests/*.test.ts"
   },

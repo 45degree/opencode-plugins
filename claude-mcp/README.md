@@ -34,9 +34,9 @@
 
 ```sh
 pnpm install --frozen-lockfile
-pnpm run build
+pnpm run build:dist
 pnpm run typecheck
 pnpm test
 ```
 
-`pnpm run build` 直接调用 esbuild，把 `src/entry.ts` 打包为压缩的 `dist/index.js`，不需要自定义构建脚本。修改源码后，将源码与重新生成的产物一起提交。`entry/index.ts` 保留为原加载路径的转发入口，指向同一实现。
+`pnpm run build:dist` 直接调用 esbuild，把 `src/entry.ts` 打包为压缩的 `dist/index.js`，不需要自定义构建脚本。修改源码后，将源码与重新生成的产物一起提交。`entry/index.ts` 保留为原加载路径的转发入口，指向同一实现。

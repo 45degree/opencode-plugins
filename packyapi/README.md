@@ -94,10 +94,10 @@
 ```sh
 pnpm install        # 安装依赖（@opencode/plugin 锁定 2.2.7；esbuild/typescript/tsx 为构建与测试工具，fast-fuzzy 源依赖仅供开发）
 pnpm run typecheck  # tsc --noEmit
-pnpm run build      # 内联 bundle + 声明类型 + 第三方许可，输出 dist/
+pnpm run build:dist # 内联 bundle + 声明类型 + 第三方许可，输出 dist/
 pnpm test           # node --import tsx/esm --test tests/*.test.ts
 ```
 
-构建产物为压缩（minified）ESM 且可复现：连续两次 `pnpm run build` 输出内容一致。`@opencode/plugin`、`effect` 与 Node/Bun 内置模块不打进产物，由宿主运行时注入；普通依赖（fast-fuzzy 及其依赖链）已内联，使用者机器上不需要插件的 node_modules。
+构建产物为压缩（minified）ESM 且可复现：连续两次 `pnpm run build:dist` 输出内容一致。`@opencode/plugin`、`effect` 与 Node/Bun 内置模块不打进产物，由宿主运行时注入；普通依赖（fast-fuzzy 及其依赖链）已内联，使用者机器上不需要插件的 node_modules。
 
 测试使用假 key 与模拟上游（含本地 HTTP 服务驱动的真实 Responses 适配器），不调用真实收费模型。真实 PackyAPI 联调需另行授权并使用独立测试凭据。

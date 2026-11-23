@@ -8,7 +8,7 @@
     ".": "./dist/index.js"
   },
   "scripts": {
-    "build": "node scripts/build.mjs",
+    "build:dist": "node scripts/build.mjs",
     "typecheck": "tsc -p tsconfig.json",
     "test": "node --import tsx/esm --test tests/*.test.ts"
   },

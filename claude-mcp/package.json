@@ -11,7 +11,7 @@
     }
   },
   "scripts": {
-    "build": "esbuild src/entry.ts --bundle --minify --format=esm --platform=node --target=es2022 --charset=utf8 --external:node:* --outfile=dist/index.js",
+    "build:dist": "esbuild src/entry.ts --bundle --minify --format=esm --platform=node --target=es2022 --charset=utf8 --external:node:* --outfile=dist/index.js",
     "typecheck": "tsc -p tsconfig.json",
     "test": "node --import tsx/esm --test tests/*.test.ts"
   },

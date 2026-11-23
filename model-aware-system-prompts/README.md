@@ -69,5 +69,5 @@ Nunjucks 官方不提供沙箱。本插件不限制模板语法，也不区分�
 pnpm install        # 生成独立 lockfile（pnpm v10）
 pnpm test           # node --test，入口是插件公开的 setup 与 session hook
 pnpm typecheck      # tsc --noEmit
-pnpm build          # esbuild 打包 dist/index.js，同时生成 dist/THIRD-PARTY-LICENSES
+pnpm build:dist     # esbuild 打包 dist/index.js，同时生成 dist/THIRD-PARTY-LICENSES
 ```
