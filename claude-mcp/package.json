@@ -1,0 +1,27 @@
+{
+  "name": "claude-mcp-opencode-plugin",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "esbuild src/entry.ts --bundle --minify --format=esm --platform=node --target=es2022 --charset=utf8 --external:node:* --outfile=dist/index.js",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "node --import tsx/esm --test tests/*.test.ts"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.0",
+    "esbuild": "0.28.2",
+    "tsx": "^4.22.0",
+    "typescript": "^5.9.0"
+  }
+}

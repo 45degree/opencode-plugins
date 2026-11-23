@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "skill-override.schema.json",
+  "title": "skill-override overrides file",
+  "description": "Per-skill overrides keyed by the skill's name (the name field of SKILL.md frontmatter), applied on top of the original skill. Only description and autoinvoke may be overridden.",
+  "type": "object",
+  "additionalProperties": {
+    "$ref": "#/$defs/override"
+  },
+  "$defs": {
+    "override": {
+      "type": "object",
+      "properties": {
+        "description": {
+          "type": "string",
+          "description": "Replaces the skill description shown to the model. An empty string is applied as-is."
+        },
+        "autoinvoke": {
+          "type": "boolean",
+          "description": "false hides the skill from the model's advertised list; the skill stays registered and loadable by ID."
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}
