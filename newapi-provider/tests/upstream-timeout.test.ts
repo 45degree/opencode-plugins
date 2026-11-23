@@ -6,6 +6,8 @@ import { describe, it } from "node:test"
 import assert from "node:assert/strict"
 import { fetchModels } from "../src/upstream.ts"
 
+const MODELS_URL = "https://newapi.example.com/v1/models"
+
 // Real fetch binds the response body to the request signal: an abort errors the
 // body stream. The fixture mirrors that platform contract.
 const hangingBodyFetch = (): typeof globalThis.fetch =>
@@ -27,7 +29,7 @@ const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 describe("upstream: body read timeout and external abort", () => {
   it("fails as network when the body never completes within the timeout", async () => {
-    const result = await fetchModels("sk-fake-key", { fetch: hangingBodyFetch(), timeoutMs: 60 })
+    const result = await fetchModels("sk-fake-key", { fetch: hangingBodyFetch(), timeoutMs: 60, modelsURL: MODELS_URL })
     assert.equal(result.ok, false, "a hanging body must not hang forever")
     if (!result.ok) {
       assert.equal(result.kind, "network")
@@ -43,6 +45,7 @@ describe("upstream: body read timeout and external abort", () => {
       fetch: hangingBodyFetch(),
       timeoutMs: 10_000,
       signal: controller.signal,
+      modelsURL: MODELS_URL,
     })
     await delay(20)
     controller.abort()

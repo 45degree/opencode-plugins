@@ -1,4 +1,4 @@
-// Ticket 04: lifecycle. Load refreshes; the native `packyapi-refresh` command refreshes
+// Ticket 04: lifecycle. Load refreshes; the native `newapi-provider-refresh` command refreshes
 // without any inference request; active-key changes refresh the right provider; a key
 // change in flight never lets the old key's late result win; a same-key failure keeps
 // the last good catalog; a legitimate empty catalog clears models; removed providers
@@ -7,12 +7,12 @@
 import { describe, it } from "node:test"
 import assert from "node:assert/strict"
 import { makeContext, stubModelsFetch, type RecordedRequest } from "./helpers/context.js"
-import packyapi from "../src/index.js"
+import newapiProvider from "../src/index.js"
 
 const RESPONSES_MODEL = (id: string) => ({ id, supported_endpoint_types: ["openai-response"] })
 
 const OPTIONS = {
-  providers: [{ id: "packy-work", name: "Packy Work" }],
+  providers: [{ base_url: "https://newapi.example.com", groups: [{ id: "packy-work", name: "Packy Work" }] }],
 }
 
 /** Deferred fetch factory: tests resolve requests in a chosen order. */
@@ -70,12 +70,12 @@ describe("lifecycle: manual refresh command", () => {
 
     let cleanup: (() => Promise<void> | void) | undefined
     try {
-      cleanup = normalizeCleanup(await packyapi.setup(context))
+      cleanup = normalizeCleanup(await newapiProvider.setup(context))
     } finally {
       restore()
     }
 
-    const command = drafts.commands.get("packyapi-refresh")
+    const command = drafts.commands.get("newapi-provider-refresh")
     assert.ok(command, "native refresh command registered")
 
     const { requests, restore: restore2 } = stubModelsFetch({
@@ -89,7 +89,7 @@ describe("lifecycle: manual refresh command", () => {
     }
 
     assert.equal(requests.length, 1, "manual refresh performs model discovery")
-    assert.equal(requests[0]!.url, "https://www.packyapi.ai/v1/models", "discovery only, no inference request")
+    assert.equal(requests[0]!.url, "https://newapi.example.com/v1/models", "discovery only, no inference request")
     assert.equal(
       drafts.providers.get("packy-work")!.models.has("resp-2"),
       true,
@@ -106,12 +106,12 @@ describe("lifecycle: manual refresh command", () => {
     const first = stubModelsFetch({ object: "list", data: [RESPONSES_MODEL("resp-1")] })
     let cleanup: (() => Promise<void> | void) | undefined
     try {
-      cleanup = normalizeCleanup(await packyapi.setup(context))
+      cleanup = normalizeCleanup(await newapiProvider.setup(context))
     } finally {
       first.restore()
     }
 
-    const command = drafts.commands.get("packyapi-refresh")!
+    const command = drafts.commands.get("newapi-provider-refresh")!
     const second = stubModelsFetch({ object: "list", data: [] }, 500)
     const warnings: string[] = []
     const originalWarn = console.warn
@@ -175,14 +175,14 @@ describe("lifecycle: source identity invalidation", () => {
 
     let cleanup: (() => Promise<void> | void) | undefined
     try {
-      cleanup = normalizeCleanup(await packyapi.setup(context))
+      cleanup = normalizeCleanup(await newapiProvider.setup(context))
       assert.ok(drafts.providers.get("packy-work")!.models.has("resp-1"), "initial catalog registered")
 
       // The active credential is replaced; the manual refresh must discard the old
       // catalog BEFORE the new fetch resolves (and even before it is answered).
       connection.id = "cred-2"
       connection.credential = { type: "key", key: "sk-rotated" }
-      const command = drafts.commands.get("packyapi-refresh")!
+      const command = drafts.commands.get("newapi-provider-refresh")!
       const execution = command.execute({
         sessionID: "ses_test" as never,
         prompt: {} as never,
@@ -233,11 +233,11 @@ describe("lifecycle: source identity invalidation", () => {
     const first = stubModelsFetch({ object: "list", data: [RESPONSES_MODEL("resp-1")] })
     let cleanup: (() => Promise<void> | void) | undefined
     try {
-      cleanup = normalizeCleanup(await packyapi.setup(context))
+      cleanup = normalizeCleanup(await newapiProvider.setup(context))
     } finally {
       first.restore()
     }
-    const command = drafts.commands.get("packyapi-refresh")!
+    const command = drafts.commands.get("newapi-provider-refresh")!
     const second = stubModelsFetch({ object: "list", data: [] }, 500)
     try {
       await assert.rejects(() =>
@@ -256,21 +256,21 @@ describe("lifecycle: source identity invalidation", () => {
 })
 
 describe("lifecycle: cleanup", () => {
-  it("invalidates in-flight refreshes: a late result is dropped and never reloads", async () => {
-    const { context, drafts } = makeContext({
+  it("waits for a refresh that is in flight, keeps its result for the next start, and triggers no rebuild", async () => {
+    const { context, drafts, storage } = makeContext({
       options: OPTIONS,
       connection: { credential: { type: "key", key: "sk-fake-work" } },
     })
     const stub = stubDeferredFetch()
 
-    const setupPromise = packyapi.setup(context)
+    const setupPromise = newapiProvider.setup(context)
     await drainMicrotasks()
     stub.replyIndex(0, [RESPONSES_MODEL("resp-1")])
     const cleanup = await setupPromise
     assert.ok(cleanup, "setup returns a cleanup")
     const reloadsBefore = drafts.reloadCalls
 
-    const command = drafts.commands.get("packyapi-refresh")!
+    const command = drafts.commands.get("newapi-provider-refresh")!
     const inFlight = command.execute({
       sessionID: "ses_test" as never,
       prompt: {} as never,
@@ -279,18 +279,20 @@ describe("lifecycle: cleanup", () => {
     await drainMicrotasks()
     await drainMicrotasks()
 
-    if (cleanup) await cleanup()
-    stub.replyIndex(0, [RESPONSES_MODEL("resp-late")])
-    await inFlight
+    // Cleanup begins while the request is in flight and returns only after it.
+    let stopped = false
+    const stopping = Promise.resolve(cleanup()).then(() => (stopped = true))
     await drainMicrotasks()
+    assert.equal(stopped, false, "cleanup waits for the refresh that already started")
+    stub.replyIndex(0, [RESPONSES_MODEL("resp-late")])
+    await Promise.all([inFlight, stopping])
 
     const models = drafts.providers.get("packy-work")!.models
-    assert.equal(models.has("resp-late"), false, "the late result after cleanup is discarded")
-    assert.equal(
-      drafts.reloadCalls,
-      reloadsBefore,
-      "a superseded refresh does not trigger another provider reload",
-    )
+    assert.equal(models.has("resp-1"), true, "the host state is not rebuilt while the plugin unloads")
+    assert.equal(models.has("resp-late"), false)
+    assert.equal(drafts.reloadCalls, reloadsBefore, "cleanup and the round it waited for trigger no rebuild")
+    const stored = storage.data.get("catalog:packy-work") as { models: Array<{ id: string }> } | undefined
+    assert.deepEqual(stored?.models.map((model) => model.id), ["resp-late"], "the finished round was written for the next start")
     stub.restore()
   })
 })
@@ -317,7 +319,7 @@ describe("lifecycle: credential events", () => {
 
     let cleanup: (() => Promise<void> | void) | undefined
     try {
-      cleanup = normalizeCleanup(await packyapi.setup(context))
+      cleanup = normalizeCleanup(await newapiProvider.setup(context))
 
       assert.equal(requests[0]?.authorization, "Bearer sk-fake-work", "load refreshes with the active key")
 
@@ -350,12 +352,12 @@ describe("lifecycle: credential events", () => {
     })
     const stub = stubDeferredFetch()
 
-    const setupPromise = packyapi.setup(context)
+    const setupPromise = newapiProvider.setup(context)
     await drainMicrotasks()
     stub.replyIndex(0, [RESPONSES_MODEL("resp-1")])
     const cleanup = await setupPromise
 
-    const command = drafts.commands.get("packyapi-refresh")!
+    const command = drafts.commands.get("newapi-provider-refresh")!
     const executionSlow = command.execute({
       sessionID: "ses_test" as never,
       prompt: {} as never,
@@ -386,8 +388,13 @@ describe("lifecycle: credential events", () => {
   it("refreshes two providers concurrently without one blocking the other", async () => {
     const options = {
       providers: [
-        { id: "packy-work", name: "Packy Work" },
-        { id: "packy-personal", name: "Packy Personal" },
+        {
+          base_url: "https://newapi.example.com",
+          groups: [
+            { id: "packy-work", name: "Packy Work" },
+            { id: "packy-personal", name: "Packy Personal" },
+          ],
+        },
       ],
     }
     const { context, drafts } = makeContext({
@@ -401,14 +408,14 @@ describe("lifecycle: credential events", () => {
     })
     const stub = stubDeferredFetch()
 
-    const setupPromise = packyapi.setup(context)
+    const setupPromise = newapiProvider.setup(context)
     await drainMicrotasks()
     // Reply in descending index order: each reply splices the pending list.
     stub.replyIndex(1, [RESPONSES_MODEL("resp-2")])
     stub.replyIndex(0, [RESPONSES_MODEL("resp-1")])
     const cleanup = await setupPromise
 
-    const command = drafts.commands.get("packyapi-refresh")!
+    const command = drafts.commands.get("newapi-provider-refresh")!
     const execution = command.execute({ sessionID: "ses_test" as never, prompt: {} as never, delivery: {} as never })
     await drainMicrotasks()
     await drainMicrotasks()
@@ -435,12 +442,12 @@ describe("lifecycle: credential events", () => {
     const first = stubModelsFetch({ object: "list", data: [RESPONSES_MODEL("resp-1")] })
     let cleanup: (() => Promise<void> | void) | undefined
     try {
-      cleanup = normalizeCleanup(await packyapi.setup(context))
+      cleanup = normalizeCleanup(await newapiProvider.setup(context))
     } finally {
       first.restore()
     }
 
-    const command = drafts.commands.get("packyapi-refresh")!
+    const command = drafts.commands.get("newapi-provider-refresh")!
     const second = stubModelsFetch({ object: "list", data: [] })
     try {
       await command.execute({ sessionID: "ses_test" as never, prompt: {} as never, delivery: {} as never })
@@ -464,7 +471,7 @@ describe("lifecycle: credential events", () => {
     const first = stubModelsFetch({ object: "list", data: [RESPONSES_MODEL("resp-1")] })
     let cleanup: (() => Promise<void> | void) | undefined
     try {
-      cleanup = normalizeCleanup(await packyapi.setup(context))
+      cleanup = normalizeCleanup(await newapiProvider.setup(context))
     } finally {
       first.restore()
     }
@@ -485,6 +492,6 @@ describe("lifecycle: credential events", () => {
   })
 })
 
-function normalizeCleanup(result: Awaited<ReturnType<typeof packyapi.setup>>): (() => Promise<void> | void) | undefined {
+function normalizeCleanup(result: Awaited<ReturnType<typeof newapiProvider.setup>>): (() => Promise<void> | void) | undefined {
   return typeof result === "function" ? result : undefined
 }

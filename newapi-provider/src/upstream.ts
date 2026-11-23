@@ -1,7 +1,5 @@
-export const API_ROOT = "https://www.packyapi.ai/v1"
-export const MODELS_URL = `${API_ROOT}/models`
 const DEFAULT_TIMEOUT_MS = 15_000
-/** Discovery URL for a normalized gateway root. */
+/** Discovery URL of an instance, derived from its normalized root. */
 export function modelsURLFor(gatewayRoot: string): string {
   return `${gatewayRoot}/v1/models`
 }
@@ -45,12 +43,9 @@ export interface FetchDeps {
   readonly timeoutMs?: number
   /** Merged into the request signal so plugin cleanup can abort in-flight discovery. */
   readonly signal?: AbortSignal
-  /** Discovery URL; defaults to the official PackyAPI endpoint. */
-  readonly modelsURL?: string
+  /** Discovery URL of the group's instance: `{normalized base_url}/v1/models`. There is no default instance. */
+  readonly modelsURL: string
 }
-
-const DEFAULT_GATEWAY_ROOT = "https://www.packyapi.ai"
-const DEFAULT_MODELS_URL = MODELS_URL
 
 /** Failure messages name the classification and status only: never the key, headers or raw body. */
 function failure(kind: UpstreamFailureKind, message: string): UpstreamResult {
@@ -59,10 +54,10 @@ function failure(kind: UpstreamFailureKind, message: string): UpstreamResult {
 
 /** Fetch `GET /v1/models` with Bearer auth and parse it; only a valid success replaces a catalog.
  * The timeout covers the whole body read, not just the response headers. */
-export async function fetchModels(key: string, deps: FetchDeps = {}): Promise<UpstreamResult> {
+export async function fetchModels(key: string, deps: FetchDeps): Promise<UpstreamResult> {
   const doFetch = deps.fetch ?? globalThis.fetch
   const timeoutMs = deps.timeoutMs ?? DEFAULT_TIMEOUT_MS
-  const modelsURL = deps.modelsURL ?? DEFAULT_MODELS_URL
+  const modelsURL = deps.modelsURL
   const timeoutSignal = AbortSignal.timeout(timeoutMs)
   const signal = deps.signal ? AbortSignal.any([deps.signal, timeoutSignal]) : timeoutSignal
   let response: Response

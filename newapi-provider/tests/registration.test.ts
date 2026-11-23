@@ -1,12 +1,12 @@
 // Cycle A of ticket 01: one configured provider, active key, discovery, registration.
 // The plugin must register the integration + key method, discover the catalog with the
-// active key through GET https://www.packyapi.ai/v1/models, and register the provider
+// active key through GET https://newapi.example.com/v1/models, and register the provider
 // bound to the Responses-only native package with the discovered models.
 
 import { describe, it } from "node:test"
 import assert from "node:assert/strict"
 import { makeContext, stubModelsFetch } from "./helpers/context.js"
-import packyapi from "../src/index.js"
+import newapiProvider from "../src/index.js"
 
 const CATALOG = {
   object: "list",
@@ -20,7 +20,7 @@ const CATALOG = {
 }
 
 const OPTIONS = {
-  providers: [{ id: "packy-work", name: "Packy Work" }],
+  providers: [{ base_url: "https://newapi.example.com", groups: [{ id: "packy-work", name: "Packy Work" }] }],
 }
 
 describe("setup: single provider registration", () => {
@@ -29,7 +29,7 @@ describe("setup: single provider registration", () => {
     const { restore } = stubModelsFetch(CATALOG)
 
     try {
-      await packyapi.setup(context)
+      await newapiProvider.setup(context)
     } finally {
       restore()
     }
@@ -50,13 +50,13 @@ describe("setup: single provider registration", () => {
     const { requests, restore } = stubModelsFetch(CATALOG)
 
     try {
-      await packyapi.setup(context)
+      await newapiProvider.setup(context)
     } finally {
       restore()
     }
 
     assert.equal(requests.length, 1)
-    assert.equal(requests[0]!.url, "https://www.packyapi.ai/v1/models")
+    assert.equal(requests[0]!.url, "https://newapi.example.com/v1/models")
     assert.equal(requests[0]!.authorization, "Bearer sk-fake-work")
 
     const entry = drafts.providers.get("packy-work")
@@ -64,7 +64,7 @@ describe("setup: single provider registration", () => {
     assert.equal(entry.provider.name, "Packy Work")
     assert.equal(entry.provider.integrationID, "packy-work")
     assert.equal(entry.provider.package, "@opencode/ai/providers/openai-compatible/responses")
-    assert.equal(entry.provider.settings?.baseURL, "https://www.packyapi.ai/v1")
+    assert.equal(entry.provider.settings?.baseURL, "https://newapi.example.com/v1")
 
     const model = entry.models.get("gemini-3-pro")
     assert.ok(model, "discovered model registered under its upstream id")
@@ -74,13 +74,13 @@ describe("setup: single provider registration", () => {
 
   it("registers no catalog when the integration has no active key", async () => {
     const { context, drafts } = makeContext({
-      options: { providers: [{ id: "packy-work", name: "Packy Work" }] },
+      options: { providers: [{ base_url: "https://newapi.example.com", groups: [{ id: "packy-work", name: "Packy Work" }] }] },
       connection: {},
     })
     const { requests, restore } = stubModelsFetch(CATALOG)
 
     try {
-      await packyapi.setup(context)
+      await newapiProvider.setup(context)
     } finally {
       restore()
     }

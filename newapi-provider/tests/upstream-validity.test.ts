@@ -6,6 +6,8 @@ import { describe, it } from "node:test"
 import assert from "node:assert/strict"
 import { fetchModels } from "../src/upstream.ts"
 
+const MODELS_URL = "https://newapi.example.com/v1/models"
+
 function okFetch(payload: unknown) {
   return (async () =>
     new Response(JSON.stringify(payload), {
@@ -17,6 +19,7 @@ function okFetch(payload: unknown) {
 describe("upstream: response validity", () => {
   it("rejects a response whose data contains invalid entries instead of treating it as empty", async () => {
     const result = await fetchModels("sk-fake-key", {
+      modelsURL: MODELS_URL,
       fetch: okFetch({
         object: "list",
         data: [{ id: "resp-ok", supported_endpoint_types: ["openai-response"] }, "garbage", 42],
@@ -30,7 +33,7 @@ describe("upstream: response validity", () => {
   })
 
   it("still accepts a legal empty data array as a valid empty catalog", async () => {
-    const result = await fetchModels("sk-fake-key", { fetch: okFetch({ object: "list", data: [] }) })
+    const result = await fetchModels("sk-fake-key", { modelsURL: MODELS_URL, fetch: okFetch({ object: "list", data: [] }) })
     assert.deepEqual(result, { ok: true, models: [] })
   })
 })

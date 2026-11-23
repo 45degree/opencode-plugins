@@ -52,6 +52,28 @@ export interface RecordedDrafts {
   removedProviders: string[]
   setModelCalls: Array<{ providerID: string; modelIDs: string[] }>
   reloadCalls: number
+  /** Every connection status handed to the host, in order. */
+  statusReports: Array<{ integrationID: string; connection: unknown; status: unknown }>
+  /** How often the plugin subscribed to host events, and how often that subscription was cancelled. */
+  eventSubscriptions: number
+  subscriptionAborts: number
+}
+
+/** In-memory stand-in for the host's plugin-scoped JSON storage; share one across setups to model restarts. */
+export interface StorageStub {
+  /** Raw stored values as the host keeps them; tests may corrupt an entry directly. */
+  data: Map<string, unknown>
+  reads: string[]
+  /** Writes that landed, in landing order. */
+  writes: Array<{ key: string; value: unknown }>
+  /** Runs before a write lands: reject to fail the write, stay pending to hold it. */
+  beforeWrite?: (key: string, value: unknown) => Promise<void>
+  /** Runs before a read is answered: stay pending to hold it. */
+  beforeRead?: (key: string) => Promise<void>
+}
+
+export function makeStorage(initial: Record<string, unknown> = {}): StorageStub {
+  return { data: new Map(Object.entries(initial)), reads: [], writes: [] }
 }
 
 export interface ConnectionStub {
@@ -73,6 +95,8 @@ export interface ContextStubOptions {
   events?: Array<{ type: string; data?: Record<string, unknown> }>
   /** Pre-registered providers, standing in for host-native catalog sources (models-dev transforms). */
   seedProviders?: Array<{ id: string; name?: string; models: Array<Record<string, unknown>> }>
+  /** Plugin storage; pass the same stub to several setups to model a restart. */
+  storage?: StorageStub
 }
 
 /** Recording PluginContext stub covering the domains setup touches; cast at the seam. */
@@ -88,7 +112,11 @@ export function makeContext(options: ContextStubOptions = {}) {
     removedProviders: [],
     setModelCalls: [],
     reloadCalls: 0,
+    statusReports: [],
+    eventSubscriptions: 0,
+    subscriptionAborts: 0,
   }
+  const storage = options.storage ?? makeStorage()
 
   const connection = options.connection ?? {}
 
@@ -226,7 +254,9 @@ export function makeContext(options: ContextStubOptions = {}) {
           }
           return connection.credential
         },
-        status: async () => {},
+        status: async (report: { integrationID: string; connection: unknown; status: unknown }) => {
+          drafts.statusReports.push(report)
+        },
       },
     },
     provider: {
@@ -251,7 +281,18 @@ export function makeContext(options: ContextStubOptions = {}) {
       },
     },
     event: {
-      subscribe: () => {
+      // Honors the abort signal like the host does: an aborted subscription ends.
+      subscribe: (options?: { signal?: AbortSignal }) => {
+        const signal = options?.signal
+        drafts.eventSubscriptions++
+        signal?.addEventListener(
+          "abort",
+          () => {
+            drafts.subscriptionAborts++
+            notifyEvent?.()
+          },
+          { once: true },
+        )
         return (async function* eventStream() {
           let resume: (() => void) | undefined
           const promise = () => new Promise<void>((resolve) => (resume = resolve))
@@ -260,18 +301,38 @@ export function makeContext(options: ContextStubOptions = {}) {
               const next = pendingEvents.shift()!
               yield { type: next.type, data: next.data ?? {} }
             }
+            if (signal?.aborted) return
             notifyEvent = () => {
               notifyEvent = undefined
               resume?.()
             }
             await promise()
+            if (signal?.aborted) return
           }
         })()
       },
     },
+    storage: {
+      get: async (key: string) => {
+        storage.reads.push(key)
+        await storage.beforeRead?.(key)
+        const value = storage.data.get(key)
+        return value === undefined ? undefined : structuredClone(value)
+      },
+      set: async (key: string, value: unknown) => {
+        await storage.beforeWrite?.(key, value)
+        const copy = structuredClone(value)
+        storage.writes.push({ key, value: copy })
+        storage.data.set(key, copy)
+      },
+      remove: async (key: string) => {
+        storage.data.delete(key)
+      },
+      scan: async () => ({ entries: [] }),
+    },
   }
 
-  return { context: context as unknown as Plugin.Context, drafts, emitEvent, connection }
+  return { context: context as unknown as Plugin.Context, drafts, emitEvent, connection, storage }
 }
 
 export interface RecordedRequest {
@@ -300,4 +361,109 @@ export function stubModelsFetch(payload: unknown, status = 200): {
     })
   }) as unknown as typeof globalThis.fetch
   return { requests, restore: () => (globalThis.fetch = original) }
+}
+
+/** Install a recording global fetch whose status and payload are decided per request. */
+export function stubRoutedFetch(
+  respond: (request: RecordedRequest) => { payload: unknown; status?: number },
+): {
+  requests: RecordedRequest[]
+  restore: () => void
+} {
+  const requests: RecordedRequest[] = []
+  const original = globalThis.fetch
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const headers = (init?.headers ?? {}) as Record<string, string>
+    const request: RecordedRequest = {
+      url: String(input),
+      method: init?.method,
+      authorization: headers["authorization"] ?? headers["Authorization"],
+    }
+    requests.push(request)
+    const { payload, status = 200 } = respond(request)
+    return new Response(JSON.stringify(payload), {
+      status,
+      headers: { "content-type": "application/json" },
+    })
+  }) as unknown as typeof globalThis.fetch
+  return { requests, restore: () => (globalThis.fetch = original) }
+}
+
+/** Yields to the event loop until `condition` holds; fails instead of hanging when it never does. */
+export async function until(condition: () => boolean, what: string, budgetMs = 2_000): Promise<void> {
+  const started = Date.now()
+  while (!condition()) {
+    if (Date.now() - started > budgetMs) throw new Error(`timed out waiting for ${what}`)
+    await new Promise<void>((resolve) => setImmediate(resolve))
+  }
+}
+
+/** True once `promise` settled, whatever it did. */
+export function settled(promise: Promise<unknown>): () => boolean {
+  let done = false
+  void promise.then(
+    () => (done = true),
+    () => (done = true),
+  )
+  return () => done
+}
+
+export interface GatedRequest {
+  readonly request: RecordedRequest
+  /** Answers the request. False when it was already answered or aborted. */
+  answer: (payload: unknown, status?: number) => boolean
+}
+
+/**
+ * Install a recording fetch that answers nothing until the test does. Like the real
+ * fetch, a request whose signal aborts rejects and can no longer be answered.
+ */
+export function stubGatedFetch(): {
+  /** Every request in arrival order, answered or not. */
+  requests: RecordedRequest[]
+  /** Requests not answered yet, in arrival order. */
+  pending: () => GatedRequest[]
+  answer: (index: number, payload: unknown, status?: number) => void
+  restore: () => void
+} {
+  const requests: RecordedRequest[] = []
+  const open: GatedRequest[] = []
+  const original = globalThis.fetch
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const headers = (init?.headers ?? {}) as Record<string, string>
+    const request: RecordedRequest = {
+      url: String(input),
+      method: init?.method,
+      authorization: headers["authorization"] ?? headers["Authorization"],
+    }
+    requests.push(request)
+    return new Promise<Response>((resolve, reject) => {
+      const gated: GatedRequest = {
+        request,
+        answer: (payload: unknown, status = 200) => {
+          const at = open.indexOf(gated)
+          if (at < 0) return false
+          open.splice(at, 1)
+          resolve(new Response(JSON.stringify(payload), { status, headers: { "content-type": "application/json" } }))
+          return true
+        },
+      }
+      open.push(gated)
+      init?.signal?.addEventListener("abort", () => {
+        const at = open.indexOf(gated)
+        if (at >= 0) open.splice(at, 1)
+        reject(new Error("The operation was aborted due to timeout"))
+      })
+    })
+  }) as unknown as typeof globalThis.fetch
+  return {
+    requests,
+    pending: () => [...open],
+    answer: (index, payload, status) => {
+      const gated = open[index]
+      if (gated === undefined) throw new Error(`no pending request at index ${index}`)
+      gated.answer(payload, status)
+    },
+    restore: () => (globalThis.fetch = original),
+  }
 }

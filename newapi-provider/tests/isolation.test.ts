@@ -1,16 +1,22 @@
-// Ticket 03: providers are isolated. Each discovery uses its own active key, catalogs
-// are never merged across keys, one failing provider does not affect another, and no
+// Ticket 03: groups are isolated. Each discovery uses its own active key, catalogs
+// are never merged across keys, one failing group does not affect another, and no
 // error or diagnostic output ever contains a key.
 
 import { describe, it } from "node:test"
 import assert from "node:assert/strict"
 import { makeContext, stubModelsFetch, type RecordedRequest } from "./helpers/context.js"
-import packyapi from "../src/index.js"
+import newapiProvider from "../src/index.js"
 
+/** One instance with a work and a personal group: the same deployment, different keys. */
 const BOTH_PROVIDERS = {
   providers: [
-    { id: "packy-work", name: "Packy Work" },
-    { id: "packy-personal", name: "Packy Personal" },
+    {
+      base_url: "https://newapi.example.com",
+      groups: [
+        { id: "packy-work", name: "Packy Work" },
+        { id: "packy-personal", name: "Packy Personal" },
+      ],
+    },
   ],
 }
 
@@ -52,7 +58,7 @@ describe("setup: multi-provider isolation", () => {
     const { requests, restore } = stubKeyAwareFetch()
 
     try {
-      await packyapi.setup(context)
+      await newapiProvider.setup(context)
     } finally {
       restore()
     }
@@ -97,7 +103,7 @@ describe("setup: multi-provider isolation", () => {
     const restore = () => (globalThis.fetch = original)
 
     try {
-      await packyapi.setup(context)
+      await newapiProvider.setup(context)
     } finally {
       console.warn = originalWarn
       restore()
@@ -116,23 +122,6 @@ describe("setup: multi-provider isolation", () => {
     assert.ok(personal!.models.has("resp-1"), "healthy provider discovered its catalog")
   })
 
-  it("rejects duplicate provider ids as a config error", async () => {
-    const { context } = makeContext({
-      options: {
-        providers: [
-          { id: "packy-work", name: "Packy Work" },
-          { id: "packy-work", name: "Packy Again" },
-        ],
-      },
-    })
-    await assert.rejects(
-      async () => {
-        await packyapi.setup(context)
-      },
-      (error: unknown) => /duplicate provider id/.test(String((error as Error).message)),
-    )
-  })
-
   it("never places a key into provider ids, integration ids or model ids", async () => {
     const { context, drafts } = makeContext({
       options: BOTH_PROVIDERS,
@@ -141,7 +130,7 @@ describe("setup: multi-provider isolation", () => {
     const { restore } = stubModelsFetch({ object: "list", data: [RESPONSES_MODEL("shared-model")] })
 
     try {
-      await packyapi.setup(context)
+      await newapiProvider.setup(context)
     } finally {
       restore()
     }

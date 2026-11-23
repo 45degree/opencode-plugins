@@ -1,4 +1,4 @@
-// Model metadata comes from the host's ENTIRE native catalog: every PackyAPI model
+// Model metadata comes from the host's ENTIRE native catalog: every instance model
 // id is fuzzy-scored against all source models (all providers, including inactive,
 // excluding this plugin's own providers). The highest score wins; equal scores break
 // by source providerID:modelID in dictionary order. Expected winners below are
@@ -11,7 +11,7 @@
 import { describe, it } from "node:test"
 import assert from "node:assert/strict"
 import { makeContext, stubModelsFetch } from "./helpers/context.js"
-import packyapi from "../src/index.js"
+import newapiProvider from "../src/index.js"
 
 const RESPONSES_MODEL = (id: string) => ({ id, supported_endpoint_types: ["openai-response"] })
 
@@ -43,7 +43,7 @@ function namedSourceProvider(id: string, models: Array<{ id: string; name: strin
   }
 }
 
-const OWN_OPTIONS = { providers: [{ id: "packy-work", name: "Packy Work" }] }
+const OWN_OPTIONS = { providers: [{ base_url: "https://newapi.example.com", groups: [{ id: "packy-work", name: "Packy Work" }] }] }
 
 async function setupWith(seedProviders: unknown[], payload: unknown, options: Record<string, unknown> = OWN_OPTIONS) {
   const { context, drafts } = makeContext({
@@ -52,7 +52,7 @@ async function setupWith(seedProviders: unknown[], payload: unknown, options: Re
     seedProviders: seedProviders as never,
   })
   const { restore } = stubModelsFetch(payload)
-  const cleanup = await packyapi.setup(context)
+  const cleanup = await newapiProvider.setup(context)
   restore()
   return { drafts, cleanup: typeof cleanup === "function" ? cleanup : undefined, context }
 }
@@ -102,7 +102,7 @@ describe("catalog reuse: whole-catalog fuzzy matching", () => {
   })
 
   it("reports below-threshold best candidates with their score (real symptom: codex-auto-review/Step5Preview)", async () => {
-    // live evidence: PackyAPI id codex-auto-review, native candidate Step5Preview, score 0.411.
+    // live evidence: upstream id codex-auto-review, native candidate Step5Preview, score 0.411.
     const warnings: string[] = []
     const originalWarn = console.warn
     console.warn = (...args: unknown[]) => warnings.push(args.join(" "))
@@ -152,7 +152,7 @@ describe("catalog reuse: whole-catalog fuzzy matching", () => {
       { object: "list", data: [RESPONSES_MODEL("shared-model")] },
     )
     const model = drafts.providers.get("packy-work")!.models.get("shared-model")!
-    assert.equal(model.providerID, "packy-work", "identity stays the PackyAPI provider")
+    assert.equal(model.providerID, "packy-work", "identity stays the group's provider")
     // aaa-early sorts before zzz-late: its name (the model id here) is inherited.
     assert.equal(model.name, "shared-model")
     assert.ok(model.limit, "metadata from the dictionary-first source is used deterministically")
@@ -244,7 +244,7 @@ describe("catalog reuse: whole-catalog fuzzy matching", () => {
     const { drafts } = await setupWith([evil], { object: "list", data: [RESPONSES_MODEL("gpt-5.1")] })
     const model = drafts.providers.get("packy-work")!.models.get("gpt-5.1")! as unknown as Record<string, unknown>
     assert.deepEqual(model.cost, [], "price stays unknown, never inherited")
-    assert.equal(model.providerID, "packy-work", "identity stays the PackyAPI provider")
+    assert.equal(model.providerID, "packy-work", "identity stays the group's provider")
     assert.equal(model.id, "gpt-5.1", "the model id stays the upstream id")
     assert.equal(model.name, "gpt-5.1", "the display name stays the upstream id, never the source name")
     assert.equal(model.enabled, true, "enablement comes from the protocol filter, not the source")
@@ -252,7 +252,7 @@ describe("catalog reuse: whole-catalog fuzzy matching", () => {
     assert.equal(model.compatibility, undefined, "source compatibility is not copied")
     assert.deepEqual(
       model.settings,
-      { baseURL: "https://www.packyapi.ai/v1" },
+      { baseURL: "https://newapi.example.com/v1" },
       "settings are our own derived route, never the source's settings",
     )
     assert.equal(
@@ -265,7 +265,7 @@ describe("catalog reuse: whole-catalog fuzzy matching", () => {
     }
     const provider = drafts.providers.get("packy-work")!.provider
     assert.equal(provider.package, "@opencode/ai/providers/openai-compatible/responses")
-    assert.equal((provider.settings as Record<string, unknown>)?.baseURL, "https://www.packyapi.ai/v1")
+    assert.equal((provider.settings as Record<string, unknown>)?.baseURL, "https://newapi.example.com/v1")
   })
 
   it("re-reads sources on every rebuild: host updates change limits without another upstream fetch", async () => {
@@ -287,7 +287,7 @@ describe("catalog reuse: whole-catalog fuzzy matching", () => {
 
     let cleanup: (() => Promise<void> | void) | undefined
     try {
-      cleanup = normalizeCleanup(await packyapi.setup(context))
+      cleanup = normalizeCleanup(await newapiProvider.setup(context))
       const before = drafts.providers.get("packy-work")!.models.get("gpt-5.1")!
       assert.equal(before.limit.context, 400000)
 
@@ -304,6 +304,6 @@ describe("catalog reuse: whole-catalog fuzzy matching", () => {
   })
 })
 
-function normalizeCleanup(result: Awaited<ReturnType<typeof packyapi.setup>>): (() => Promise<void> | void) | undefined {
+function normalizeCleanup(result: Awaited<ReturnType<typeof newapiProvider.setup>>): (() => Promise<void> | void) | undefined {
   return typeof result === "function" ? result : undefined
 }

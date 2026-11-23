@@ -1,5 +1,6 @@
-// The plugin registers `@opencode/ai/providers/openai-compatible/responses` and points
-// it at `https://www.packyapi.ai/v1`. These tests drive THAT real adapter against a
+// The plugin registers `@opencode/ai/providers/openai-compatible/responses` as the
+// provider package and points it at `{base_url}/v1` of the group's instance (a fake
+// instance root below). These tests drive THAT real adapter against a
 // local mock upstream (fake keys only): the wire path, Bearer auth, upstream model id,
 // basic output, streaming, tool roundtrip, errors and usage all come from the real
 // adapter code, not a reimplementation of the protocol.
@@ -231,7 +232,7 @@ describe("real Responses adapter against a mock upstream", () => {
   })
 
   it("registers a provider whose package + baseURL settings feed the real adapter route", () => {
-    const info = buildProviderInfo({ id: "packy-work", name: "Packy Work" }, "https://www.packyapi.ai/v1")
+    const info = buildProviderInfo({ id: "packy-work", name: "Packy Work" }, "https://newapi.example.com/v1")
     assert.equal(info.package, "@opencode/ai/providers/openai-compatible/responses")
     const model = responses.model("any-model", {
       apiKey: "sk-fake-responses",
@@ -239,6 +240,6 @@ describe("real Responses adapter against a mock upstream", () => {
     })
     assert.equal(model.route.protocol, "open-responses")
     assert.equal(model.route.endpoint.path, "/responses")
-    assert.equal(model.route.endpoint.baseURL, "https://www.packyapi.ai/v1")
+    assert.equal(model.route.endpoint.baseURL, "https://newapi.example.com/v1")
   })
 })

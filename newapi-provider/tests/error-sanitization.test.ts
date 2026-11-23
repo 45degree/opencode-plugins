@@ -4,10 +4,10 @@
 import { describe, it } from "node:test"
 import assert from "node:assert/strict"
 import { makeContext, stubModelsFetch } from "./helpers/context.js"
-import packyapi from "../src/index.js"
+import newapiProvider from "../src/index.js"
 
 const OPTIONS = {
-  providers: [{ id: "packy-work", name: "Packy Work" }],
+  providers: [{ base_url: "https://newapi.example.com", groups: [{ id: "packy-work", name: "Packy Work" }] }],
 }
 
 describe("lifecycle: internal error classification", () => {
@@ -22,7 +22,7 @@ describe("lifecycle: internal error classification", () => {
     const { restore } = stubModelsFetch({ object: "list", data: [] })
     let cleanup: (() => Promise<void> | void) | undefined
     try {
-      cleanup = normalizeCleanup(await packyapi.setup(context))
+      cleanup = normalizeCleanup(await newapiProvider.setup(context))
     } finally {
       console.warn = originalWarn
       restore()
@@ -45,8 +45,8 @@ describe("lifecycle: internal error classification", () => {
     const { restore } = stubModelsFetch({ object: "list", data: [] })
     let cleanup: (() => Promise<void> | void) | undefined
     try {
-      cleanup = normalizeCleanup(await packyapi.setup(context))
-      const command = drafts.commands.get("packyapi-refresh")!
+      cleanup = normalizeCleanup(await newapiProvider.setup(context))
+      const command = drafts.commands.get("newapi-provider-refresh")!
       await assert.rejects(() =>
         command.execute({ sessionID: "ses_test" as never, prompt: {} as never, delivery: {} as never }),
       )
@@ -61,6 +61,6 @@ describe("lifecycle: internal error classification", () => {
   })
 })
 
-function normalizeCleanup(result: Awaited<ReturnType<typeof packyapi.setup>>): (() => Promise<void> | void) | undefined {
+function normalizeCleanup(result: Awaited<ReturnType<typeof newapiProvider.setup>>): (() => Promise<void> | void) | undefined {
   return typeof result === "function" ? result : undefined
 }

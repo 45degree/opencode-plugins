@@ -1,7 +1,7 @@
 {
-  "name": "packyapi-opencode-plugin",
+  "name": "newapi-provider-opencode-plugin",
   "version": "0.1.0",
-  "description": "OpenCode V2 plugin exposing multiple PackyAPI keys as independent providers with Responses-only models.",
+  "description": "OpenCode V2 plugin exposing the Provider groups of multiple New API instances as independent providers.",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -23,7 +23,7 @@
     "test": "node --import tsx/esm --test tests/*.test.ts"
   },
   "keywords": [
-    "packyapi",
+    "newapi",
     "opencode",
     "opencode-plugin",
     "openai-responses"

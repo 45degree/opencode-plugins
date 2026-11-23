@@ -97,7 +97,7 @@ export function buildModelInfos(
 
 /**
  * Copy only safe metadata from a native catalog entry. Cost stays absent (unknown,
- * never inherited), identity and routing fields stay PackyAPI's own, and `enabled`
+ * never inherited), identity and routing fields stay the group's own, and `enabled`
  * always comes from the protocol filter rather than the source.
  */
 function buildModelInfo(
@@ -109,7 +109,7 @@ function buildModelInfo(
 ): Model.Info {
   const info = Model.Info.default(Provider.ID.make(providerID), Model.ID.make(upstream.id)) as Types.DeepMutable<Model.Info>
   // The display name is ALWAYS the upstream's own: source names (preview labels,
-  // vendor branding) must never leak onto PackyAPI models.
+  // vendor branding) must never leak onto the instance's models.
   info.name = upstream.displayName ?? upstream.id
   // Every model carries its explicit protocol route so mixed protocols under one
   // provider each reach their own endpoint of the shared gateway.

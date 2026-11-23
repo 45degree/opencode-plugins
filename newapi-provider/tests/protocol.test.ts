@@ -4,10 +4,10 @@
 import { describe, it } from "node:test"
 import assert from "node:assert/strict"
 import { makeContext, stubModelsFetch } from "./helpers/context.js"
-import packyapi from "../src/index.js"
+import newapiProvider from "../src/index.js"
 
 const OPTIONS = {
-  providers: [{ id: "packy-work", name: "Packy Work" }],
+  providers: [{ base_url: "https://newapi.example.com", groups: [{ id: "packy-work", name: "Packy Work" }] }],
 }
 
 describe("setup: Responses protocol filtering", () => {
@@ -27,7 +27,7 @@ describe("setup: Responses protocol filtering", () => {
     })
 
     try {
-      await packyapi.setup(context)
+      await newapiProvider.setup(context)
     } finally {
       console.warn = originalWarn
       restore()
@@ -54,7 +54,7 @@ describe("setup: Responses protocol filtering", () => {
     })
 
     try {
-      await packyapi.setup(context)
+      await newapiProvider.setup(context)
     } finally {
       restore()
     }

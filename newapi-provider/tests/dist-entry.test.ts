@@ -13,9 +13,13 @@ import { REFRESH_COMMAND } from "../dist/index.js"
 
 describe("dist entry", () => {
   it("loads from dist and exposes the plugin contract", () => {
-    assert.equal(entry.id, "packyapi")
+    assert.equal(entry.id, "newapi-provider")
     assert.equal(typeof entry.setup, "function")
-    assert.equal(REFRESH_COMMAND, "packyapi-refresh")
+    assert.equal(REFRESH_COMMAND, "newapi-provider-refresh")
+    // A git install loads this exact file: the identity of the plugin it replaces
+    // (PackyAPI) must not survive in it.
+    const bundle = readFileSync(new URL("../dist/index.js", import.meta.url), "utf8")
+    assert.doesNotMatch(bundle, /packyapi/i, "the bundle carries no trace of the previous plugin identity")
   })
 
   it("is a self-contained bundle: ordinary dependencies are inlined, host SDK stays external", () => {
