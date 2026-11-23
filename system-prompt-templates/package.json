@@ -1,5 +1,5 @@
 {
-  "name": "model-aware-system-prompts-opencode-plugin",
+  "name": "system-prompt-templates-opencode-plugin",
   "version": "0.1.0",
   "private": true,
   "type": "module",

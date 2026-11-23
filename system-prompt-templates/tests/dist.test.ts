@@ -19,14 +19,14 @@ interface PluginModule {
 // the test fails if dist/index.js still reaches src/ or any dependency file —
 // the bundle must be self-contained, including the template engine.
 test("dist bundle exposes the plugin contract standalone", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "model-aware-system-prompts-dist-"))
+  const directory = await mkdtemp(join(tmpdir(), "system-prompt-templates-dist-"))
   const bundle = join(directory, "index.js")
   await copyFile(new URL("../dist/index.js", import.meta.url), bundle)
   // Non-literal specifier keeps TypeScript from demanding declarations for the
   // minified artifact, which intentionally ships without .d.ts files.
   const imported: PluginModule = await import(pathToFileURL(bundle).href)
   const plugin = imported.default
-  assert.equal(plugin.id, "model-aware-system-prompts")
+  assert.equal(plugin.id, "system-prompt-templates")
   assert.equal(typeof plugin.setup, "function")
 
   const registrations: string[] = []

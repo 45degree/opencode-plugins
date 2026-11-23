@@ -110,7 +110,7 @@ test("render failures log diagnostics without prompt or template content", async
     await callback("context")(event)
     assert.equal(errors.length, 1, "exactly one diagnostic for one failing segment")
     const line = errors[0]!
-    assert.ok(line.includes("model-aware-system-prompts"), "diagnostic is tagged")
+    assert.ok(line.includes("system-prompt-templates"), "diagnostic is tagged")
     assert.ok(line.includes("kind=context"), "diagnostic records the request kind")
     assert.ok(line.includes("segment=0"), "diagnostic records the segment index")
     assert.ok(/line=\d+/.test(line), "diagnostic records the available line number")

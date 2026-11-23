@@ -1,4 +1,4 @@
-# Model-aware System Prompts
+# System Prompt Templates for OpenCode
 
 让 OpenCode V2 的系统提示词按模型、服务商或代理切换内容。
 
@@ -8,7 +8,7 @@
 
 ```json
 {
-  "plugins": ["github:45degree/opencode-plugins#main::path:model-aware-system-prompts"]
+  "plugins": ["github:45degree/opencode-plugins#main::path:system-prompt-templates"]
 }
 ```
 

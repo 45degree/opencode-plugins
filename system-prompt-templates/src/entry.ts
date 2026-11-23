@@ -23,7 +23,7 @@ void _sdkCompatible
 // registrations are scoped to this plugin instance and disposed by the host on
 // unload, so setup returns no cleanup of its own.
 const plugin: SdkPlugin = {
-  id: "model-aware-system-prompts",
+  id: "system-prompt-templates",
   setup: async (context) => {
     const renderer = createRenderer()
     // Diagnostics name only the request kind, segment index and, when
@@ -32,7 +32,7 @@ const plugin: SdkPlugin = {
     const render = (kind: HookName) => (event: HookEvent): void => {
       for (const diagnostic of renderer.renderEvent(kind, event)) {
         const line = diagnostic.line === undefined ? "" : ` line=${diagnostic.line}`
-        console.error(`[model-aware-system-prompts] render failed kind=${diagnostic.kind} segment=${diagnostic.segment}${line}`)
+        console.error(`[system-prompt-templates] render failed kind=${diagnostic.kind} segment=${diagnostic.segment}${line}`)
       }
     }
     for (const name of HOOK_NAMES) {
